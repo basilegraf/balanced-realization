@@ -20,7 +20,7 @@ def delta(p,q):
         return 0.0
     
     
-def matrixMcont(A):
+def matrixMContinuous(A):
     A = np.asarray(A)
     assert len(A.shape) == 2, "A should be 2D"
     assert A.shape[0] == A.shape[1], "A should be square"
@@ -31,7 +31,7 @@ def matrixMcont(A):
             M[s,l] = A[s//n, l//n] * delta(l%n, s%n) + A[s%n, l%n]  * delta(l//n, s//n)
     return M
 
-def matrixMdiscr(A):
+def matrixMDiscrete(A):
     A = np.asarray(A)
     assert len(A.shape) == 2, "A should be 2D"
     assert A.shape[0] == A.shape[1], "A should be square"
@@ -63,28 +63,26 @@ def vector2matrix(w):
             W[q,p] = w[n*p + q]
     return W
 
+# Continuous and discrete versions differ only in the form of the size n**2
+# square system 
+def ControllabilityGramian(M, A, B):
+    A = np.asarray(A)
+    B = np.asarray(B)
+    BBt = np.matmul(B, B.transpose())
+    # n**2 x n**2 linear system
+    b = vectorb(BBt)   
+    w = np.linalg.solve(M,-b)
+    return vector2matrix(w)
 
 # Solve for continuous controllability gramian A*W + W*A' + B*B'
 def ControllabilityGramianContinuous(A, B):
-    A = np.asarray(A)
-    B = np.asarray(B)
-    BBt = np.matmul(B, B.transpose())
-    # n**2 x n**2 linear system
-    M = matrixMcont(A)
-    b = vectorb(BBt)   
-    w = np.linalg.solve(M,-b)
-    return vector2matrix(w)
+    M = matrixMContinuous(A)
+    return ControllabilityGramian(M, A, B)
 
 # Solve for discrete controllability gramian A*W*A' - W + B*B'
 def ControllabilityGramianDiscrete(A, B):
-    A = np.asarray(A)
-    B = np.asarray(B)
-    BBt = np.matmul(B, B.transpose())
-    # n**2 x n**2 linear system
-    M = matrixMdiscr(A)
-    b = vectorb(BBt)   
-    w = np.linalg.solve(M,-b)
-    return vector2matrix(w)
+    M = matrixMDiscrete(A)
+    return ControllabilityGramian(M, A, B)
 
 # Solve for continuous observability gramian A'*M + M*A + C'*C
 def ObservabilityGramianContinuous(A, C):
