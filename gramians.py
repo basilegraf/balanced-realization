@@ -87,7 +87,7 @@ def ControllabilityGramianDiscrete(A, B):
     return vector2matrix(w)
 
 # Solve for continuous observability gramian A'*M + M*A + C'*C
-def ObservabilityGramianConinuous(A, C):
+def ObservabilityGramianContinuous(A, C):
     A = np.asarray(A)
     C = np.asarray(C)
     return ControllabilityGramianConinuous(A.transpose(), C.transpose())
@@ -97,6 +97,27 @@ def ObservabilityGramianDiscrete(A, C):
     A = np.asarray(A)
     C = np.asarray(C)
     return ControllabilityGramianDiscrete(A.transpose(), C.transpose())
+
+
+
+# Build a stable matrix with ev inside unit circle
+def randomDiscreteSytem(n, m=1, p=1):
+    A = np.random.rand(n, n)
+    ev = np.linalg.eigvals(A)
+    maxev = np.max(np.abs(ev))
+    A *= 0.8 / maxev
+    B = np.random.rand(n, m)
+    C = np.random.rand(p, n)
+    D = np.random.rand(p, m)
+    return A,B,C,D
+
+# Build a stable matrix with ev with negative real part
+def randomContinuous(n, m=1, p=1):
+    A,B,C,D = randomDiscreteSytem(n, m, p)
+    A = A - np.identity(n)
+    M = np.random.rand(n, n)
+    A = np.matmul(np.matmul(M,A), np.linalg.inv(M))
+    return A,B,C,D
 
 if __name__ == "__main__":
     
@@ -108,7 +129,7 @@ if __name__ == "__main__":
     CtC = np.matmul(C.transpose(), C)
         
     Wc = ControllabilityGramianConinuous(A, B)
-    Mc = ObservabilityGramianConinuous(A, C)
+    Mc = ObservabilityGramianContinuous(A, C)
     
     Wd = ControllabilityGramianDiscrete(A, B)
     Md = ObservabilityGramianDiscrete(A, C)
@@ -124,3 +145,12 @@ if __name__ == "__main__":
     
     errMd = np.matmul(np.matmul(A.transpose(),Md),A) - Md + CtC
     print(errWd)
+    
+    print("Continuous")
+    A,B,C,D = randomContinuous(5)
+    print(np.real(np.linalg.eigvals(A)))
+    
+    print("Discrete")
+    A,B,C,D = randomDiscreteSytem(5)
+    print(np.abs(np.linalg.eigvals(A)))
+    
