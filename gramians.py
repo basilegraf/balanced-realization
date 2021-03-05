@@ -65,7 +65,7 @@ def vector2matrix(w):
 
 
 # Solve for continuous controllability gramian A*W + W*A' + B*B'
-def ControllabilityGramianConinuous(A, B):
+def ControllabilityGramianContinuous(A, B):
     A = np.asarray(A)
     B = np.asarray(B)
     BBt = np.matmul(B, B.transpose())
@@ -90,7 +90,7 @@ def ControllabilityGramianDiscrete(A, B):
 def ObservabilityGramianContinuous(A, C):
     A = np.asarray(A)
     C = np.asarray(C)
-    return ControllabilityGramianConinuous(A.transpose(), C.transpose())
+    return ControllabilityGramianContinuous(A.transpose(), C.transpose())
 
 # Solve for discrete observability gramian A'*W*A - W + C'*C
 def ObservabilityGramianDiscrete(A, C):
@@ -99,6 +99,34 @@ def ObservabilityGramianDiscrete(A, C):
     return ControllabilityGramianDiscrete(A.transpose(), C.transpose())
 
 
+def BalancedRealization(Wc,Wo,A,B,C,D=None):
+    # Wc = R'*R  (Wc is symmetric and pos def)
+    R = np.linalg.cholesky(Wc).transpose()
+    # Compute decomposition R*Wo*R' = U*S*S*U'
+    # Symetric pos def => use eig val and eig vec
+    RWoRt = np.matmul(np.matmul(R, Wo), R.transpose())
+    ev, U = np.linalg.eig(RWoRt)
+    S = np.diag(np.sqrt(ev))
+    # Get similarity transform P = sqS * U' * inv(R')
+    sqS = np.diag(np.sqrt(np.sqrt(ev))) # Square root of S
+    P = np.matmul(np.matmul(sqS, U.transpose()), np.linalg.inv(R.transpose()))
+    Abar = np.matmul(np.matmul(P, A), np.linalg.inv(P))
+    Bbar = np.matmul(P, B)
+    Cbar = np.matmul(C, np.linalg.inv(P))
+    Dbar = D
+    return Abar, Bbar, Cbar, Dbar, P
+    
+
+def BalancedRealizationContinuous(A,B,C,D=None):
+    Wc = ControllabilityGramianContinuous(A, B)
+    Wo = ObservabilityGramianContinuous(A, C)
+    return BalancedRealization(Wc,Wo,A,B,C,D)
+
+
+def BalancedRealizationDiscrete(A,B,C,D=None):
+    Wc = ControllabilityGramianDiscrete(A, B)
+    Wo = ObservabilityGramianDiscrete(A, C)
+    return BalancedRealization(Wc,Wo,A,B,C,D)
 
 # Build a stable matrix with ev inside unit circle
 def randomDiscreteSytem(n, m=1, p=1):
@@ -128,7 +156,7 @@ if __name__ == "__main__":
     BBt = np.matmul(B, B.transpose())
     CtC = np.matmul(C.transpose(), C)
         
-    Wc = ControllabilityGramianConinuous(A, B)
+    Wc = ControllabilityGramianContinuous(A, B)
     Mc = ObservabilityGramianContinuous(A, C)
     
     Wd = ControllabilityGramianDiscrete(A, B)
@@ -147,10 +175,24 @@ if __name__ == "__main__":
     print(errWd)
     
     print("Continuous")
-    A,B,C,D = randomContinuous(5)
+    A,B,C,D = randomContinuous(n)
     print(np.real(np.linalg.eigvals(A)))
     
+    Abar, Bbar, Cbar, Dbar, P = BalancedRealizationContinuous(A,B,C,D)
+    WcBar = ControllabilityGramianContinuous(Abar, Bbar)
+    WoBar = ObservabilityGramianContinuous(Abar, Cbar)
+    print("\nContinuous WcBar\n", WcBar)
+    print("\nContinuous WoBar\n", WoBar)
+    print("\nContinuous WcBar-WoBar\n", WcBar-WoBar)
+    
     print("Discrete")
-    A,B,C,D = randomDiscreteSytem(5)
+    A,B,C,D = randomDiscreteSytem(n)
     print(np.abs(np.linalg.eigvals(A)))
     
+    
+    Abar, Bbar, Cbar, Dbar, P = BalancedRealizationDiscrete(A,B,C,D)
+    WcBar = ControllabilityGramianDiscrete(Abar, Bbar)
+    WoBar = ObservabilityGramianDiscrete(Abar, Cbar)
+    print("\nDiscrete WcBar\n", WcBar)
+    print("\nDiscrete WoBar\n", WoBar)
+    print("\nDiscrete WcBar-WoBar\n", WcBar-WoBar)
