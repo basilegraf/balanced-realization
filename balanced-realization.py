@@ -13,6 +13,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sympy as sp
 
+
+
+
+# Kronecker delta funtion
 def delta(p,q):
     if p==q:
         return 1.0
@@ -39,13 +43,13 @@ def matrixMDiscrete(A):
     M = np.zeros((n**2, n**2))
     for s in range(n**2):
         for l in range(n**2):
-            M[s,l] = A[s//n, l//n] * A[s%n, l%n] - delta(l%n, s%n) * delta(l//n, s//n)
+            M[s,l] = A[s//n, l//n] * A[s%n, l%n] - delta(l, s) #delta(l%n, s%n) * delta(l//n, s//n)
     return M
 
 def vectorb(BBt):
     BBt = np.asarray(BBt)
     assert len(BBt.shape) == 2, "BBt should be 2D"
-    assert B.shape[0] == BBt.shape[1], "BBt should be square"
+    assert BBt.shape[0] == BBt.shape[1], "BBt should be square"
     n = BBt.shape[0]
     b = np.zeros((n**2))
     for s in range(n**2):
@@ -126,71 +130,105 @@ def BalancedRealizationDiscrete(A,B,C,D=None):
     Wo = ObservabilityGramianDiscrete(A, C)
     return BalancedRealization(Wc,Wo,A,B,C,D)
 
-# Build a stable matrix with ev inside unit circle
-def randomDiscreteSytem(n, m=1, p=1):
-    A = np.random.rand(n, n)
-    ev = np.linalg.eigvals(A)
-    maxev = np.max(np.abs(ev))
-    A *= 0.8 / maxev
-    B = np.random.rand(n, m)
-    C = np.random.rand(p, n)
-    D = np.random.rand(p, m)
-    return A,B,C,D
 
-# Build a stable matrix with ev with negative real part
-def randomContinuous(n, m=1, p=1):
-    A,B,C,D = randomDiscreteSytem(n, m, p)
-    A = A - np.identity(n)
-    M = np.random.rand(n, n)
-    A = np.matmul(np.matmul(M,A), np.linalg.inv(M))
-    return A,B,C,D
 
 if __name__ == "__main__":
+    import unittest
     
-    n = 3
-    A = np.random.rand(n,n)/10
-    B = np.random.rand(n,1)
-    C = np.random.rand(1,n)
-    BBt = np.matmul(B, B.transpose())
-    CtC = np.matmul(C.transpose(), C)
-        
-    Wc = ControllabilityGramianContinuous(A, B)
-    Mc = ObservabilityGramianContinuous(A, C)
+    # Build a stable matrix with ev inside unit circle
+    def randomDiscreteSytem(n, m=1, p=1):
+        A = np.random.rand(n, n)
+        ev = np.linalg.eigvals(A)
+        maxev = np.max(np.abs(ev))
+        A *= 0.8 / maxev
+        B = np.random.rand(n, m)
+        C = np.random.rand(p, n)
+        D = np.random.rand(p, m)
+        return A,B,C,D
     
-    Wd = ControllabilityGramianDiscrete(A, B)
-    Md = ObservabilityGramianDiscrete(A, C)
+    # Build a stable matrix with ev with negative real part
+    def randomContinuous(n, m=1, p=1):
+        A,B,C,D = randomDiscreteSytem(n, m, p)
+        A = A - 2.0*np.identity(n)
+        M = np.random.rand(n, n)
+        A = np.matmul(np.matmul(M,A), np.linalg.inv(M))
+        return A,B,C,D
     
-    errWc = np.matmul(A,Wc) + np.matmul(Wc,A.transpose()) + BBt
-    print(errWc)
+    def isDiagonal(M, tol = 1e-14):
+        M = np.asarray(M)
+        M = M - np.diag(np.diagonal(M))
+        z = np.abs(M) < tol
+        return np.alltrue(z)
     
-    errWd = np.matmul(np.matmul(A,Wd),A.transpose()) - Wd + BBt
-    print(errWd)
+    def isZero(M, tol = 1e-14):
+        M = np.asarray(M)
+        z = np.abs(M) < tol
+        return np.alltrue(z)
     
-    errMc = np.matmul(A.transpose(),Mc) + np.matmul(Mc,A) + CtC
-    print(errMc)
+    class TestBalancedRealization(unittest.TestCase):
+        @classmethod
+        def setUpClass(cls):
+            cls.n = 3 # state space dim
+            cls.m = 2 # input dim
+            cls.p = 2 # output dim
+            cls.tol = 1.0e-12
+            
+        def test_ControllabilityGramianContinuous(self):
+            A,B,C,D = randomContinuous(self.n, self.m, self.p)
+            Wc = ControllabilityGramianContinuous(A, B)
+            BBt = np.matmul(B, B.transpose())
+            # check gramian equation
+            errWc = np.matmul(A,Wc) + np.matmul(Wc,A.transpose()) + BBt
+            relErr = np.linalg.norm(errWc) / np.linalg.norm(Wc)
+            self.assertLess(relErr, self.tol, "Continuous time controllability gramian equation not satisfied")
+            
+        def test_ObservabilityGramianContinuous(self):
+            A,B,C,D = randomContinuous(self.n, self.m, self.p)
+            Wo = ObservabilityGramianContinuous(A, C)
+            CtC = np.matmul(C.transpose(), C)
+            # check gramian equation
+            errWo = np.matmul(A.transpose(),Wo) + np.matmul(Wo,A) + CtC
+            relErr = np.linalg.norm(errWo) / np.linalg.norm(Wo)
+            self.assertLess(relErr, self.tol, "Continuous time observability gramian equation not satisfied")  
+            
+        def test_ControllabilityGramianDiscrete(self):
+            A,B,C,D = randomDiscreteSytem(self.n, self.m, self.p)
+            Wc = ControllabilityGramianDiscrete(A, B)
+            BBt = np.matmul(B, B.transpose())
+            # check gramian equation
+            errWc = np.matmul(np.matmul(A,Wc),A.transpose()) - Wc + BBt
+            relErr = np.linalg.norm(errWc) / np.linalg.norm(Wc)
+            self.assertLess(relErr, self.tol, "Discrete time controllability gramian equation not satisfied")
+            
+        def test_ObservabilityGramianDiscrete(self):
+            A,B,C,D = randomDiscreteSytem(self.n, self.m, self.p)
+            Wo = ObservabilityGramianDiscrete(A, C)
+            CtC = np.matmul(C.transpose(), C)
+            # check gramian equation
+            errWo = np.matmul(np.matmul(A.transpose(),Wo),A) - Wo + CtC
+            relErr = np.linalg.norm(errWo) / np.linalg.norm(Wo)
+            self.assertLess(relErr, self.tol, "Discrete time observability gramian equation not satisfied")  
     
-    errMd = np.matmul(np.matmul(A.transpose(),Md),A) - Md + CtC
-    print(errWd)
+        def test_BalancedRealizationContinuous(self):
+            A,B,C,D = randomContinuous(self.n, self.m, self.p)
+            Abar, Bbar, Cbar, Dbar, P = BalancedRealizationContinuous(A,B,C,D)
+            WcBar = ControllabilityGramianContinuous(Abar, Bbar)
+            WoBar = ObservabilityGramianContinuous(Abar, Cbar)
+            print(WcBar)
+            self.assertTrue(isDiagonal(WcBar, self.tol), "Balanced realization continuous: non diagonal gramian WcBar")
+            self.assertTrue(isDiagonal(WoBar, self.tol), "Balanced realization continuous: non diagonal gramian WoBar")
+            self.assertTrue(isZero(WcBar-WoBar, self.tol), "Balanced realization continuous: gramian are not equal")
+            
+        def test_BalancedRealizationDiscrete(self):
+            A,B,C,D = randomDiscreteSytem(self.n, self.m, self.p)
+            Abar, Bbar, Cbar, Dbar, P = BalancedRealizationDiscrete(A,B,C,D)
+            WcBar = ControllabilityGramianDiscrete(Abar, Bbar)
+            WoBar = ObservabilityGramianDiscrete(Abar, Cbar)
+            self.assertTrue(isDiagonal(WcBar, self.tol), "Balanced realization discrete: non diagonal gramian WcBar")
+            self.assertTrue(isDiagonal(WoBar, self.tol), "Balanced realization discrete: non diagonal gramian WoBar")
+            self.assertTrue(isZero(WcBar-WoBar, self.tol), "Balanced realization discrete: gramian are not equal")
     
-    print("Continuous")
-    A,B,C,D = randomContinuous(n)
-    print(np.real(np.linalg.eigvals(A)))
-    
-    Abar, Bbar, Cbar, Dbar, P = BalancedRealizationContinuous(A,B,C,D)
-    WcBar = ControllabilityGramianContinuous(Abar, Bbar)
-    WoBar = ObservabilityGramianContinuous(Abar, Cbar)
-    print("\nContinuous WcBar\n", WcBar)
-    print("\nContinuous WoBar\n", WoBar)
-    print("\nContinuous WcBar-WoBar\n", WcBar-WoBar)
-    
-    print("Discrete")
-    A,B,C,D = randomDiscreteSytem(n)
-    print(np.abs(np.linalg.eigvals(A)))
+    unittest.main()
     
     
-    Abar, Bbar, Cbar, Dbar, P = BalancedRealizationDiscrete(A,B,C,D)
-    WcBar = ControllabilityGramianDiscrete(Abar, Bbar)
-    WoBar = ObservabilityGramianDiscrete(Abar, Cbar)
-    print("\nDiscrete WcBar\n", WcBar)
-    print("\nDiscrete WoBar\n", WoBar)
-    print("\nDiscrete WcBar-WoBar\n", WcBar-WoBar)
+    
