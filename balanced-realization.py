@@ -214,7 +214,6 @@ if __name__ == "__main__":
             Abar, Bbar, Cbar, Dbar, P = BalancedRealizationContinuous(A,B,C,D)
             WcBar = ControllabilityGramianContinuous(Abar, Bbar)
             WoBar = ObservabilityGramianContinuous(Abar, Cbar)
-            print(WcBar)
             self.assertTrue(isDiagonal(WcBar, self.tol), "Balanced realization continuous: non diagonal gramian WcBar")
             self.assertTrue(isDiagonal(WoBar, self.tol), "Balanced realization continuous: non diagonal gramian WoBar")
             self.assertTrue(isZero(WcBar-WoBar, self.tol), "Balanced realization continuous: gramian are not equal")
